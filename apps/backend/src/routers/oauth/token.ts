@@ -11,8 +11,14 @@ import {
 
 const tokenRouter = express.Router();
 
-const ACCESS_TOKEN_EXPIRY = 3600; // 1 hour
-const REFRESH_TOKEN_EXPIRY = 7 * 24 * 3600; // 7 days
+const ACCESS_TOKEN_EXPIRY = parseInt(
+  process.env.OAUTH_ACCESS_TOKEN_TTL_SECONDS ?? "3600",
+  10,
+); // default 1 hour; override via OAUTH_ACCESS_TOKEN_TTL_SECONDS env var
+const REFRESH_TOKEN_EXPIRY = parseInt(
+  process.env.OAUTH_REFRESH_TOKEN_TTL_SECONDS ?? String(7 * 24 * 3600),
+  10,
+); // default 7 days; override via OAUTH_REFRESH_TOKEN_TTL_SECONDS env var
 
 /**
  * Issue a new access token + refresh token pair and store them.
