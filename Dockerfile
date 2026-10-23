@@ -5,7 +5,7 @@ FROM ghcr.io/astral-sh/uv:debian AS base
 RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
     && npm install -g pnpm@10.12.0 \
     && apt-get clean \
@@ -48,9 +48,7 @@ COPY . .
 # Build all packages and apps
 RUN pnpm build
 
-RUN sed -i -e "s/30000/600000/" \
-    "node_modules/.pnpm/next@15.5.12_react-dom@19.1.2_react@19.1.2__react@19.1.2/node_modules/next/dist/server/lib/router-utils/proxy-request.js" \
-    "node_modules/.pnpm/next@15.5.12_react-dom@19.1.2_react@19.1.2__react@19.1.2/node_modules/next/dist/esm/server/lib/router-utils/proxy-request.js"
+RUN find node_modules/.pnpm -name "proxy-request.js" -path "*/router-utils/*" -exec sed -i "s/30000/600000/" {} + || true
 
 # Production runner stage
 FROM base AS runner
@@ -62,6 +60,8 @@ LABEL org.opencontainers.image.description="MetaMCP - aggregates MCP servers int
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="MetaMCP"
 LABEL org.opencontainers.image.vendor="metatool-ai"
+
+ENV CI=true
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl postgresql-client && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -87,10 +87,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
 COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./
 
 # Install production dependencies only
-RUN pnpm install --prod
+RUN CI=true pnpm install --prod
 
-# Install drizzle-kit locally in backend for migrations
-RUN cd apps/backend && pnpm add drizzle-kit@0.31.1
+# Symlink drizzle-kit bin from pnpm store so pnpm exec can find it in apps/backend
+RUN mkdir -p apps/backend/node_modules/.bin && \
+    ln -sf /app/node_modules/.pnpm/drizzle-kit@0.31.9/node_modules/drizzle-kit/bin.cjs apps/backend/node_modules/.bin/drizzle-kit && \
+    chmod +x apps/backend/node_modules/.bin/drizzle-kit && \
+    ln -sf /app/node_modules/.pnpm/drizzle-kit@0.31.9/node_modules/drizzle-kit apps/backend/node_modules/drizzle-kit
 
 # Copy startup script
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
